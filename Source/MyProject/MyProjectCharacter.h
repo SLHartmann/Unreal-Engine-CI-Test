@@ -47,6 +47,8 @@ class AMyProjectCharacter : public ACharacter
 
 public:
 	AMyProjectCharacter();
+	virtual void Tick(float DeltaTime) override;
+	bool log_control = true;
 
 protected:
 	virtual void BeginPlay();
@@ -81,6 +83,12 @@ public:
 	uint32 bUsingMotionControllers : 1;
 
 protected:
+
+	/** Detect any key press for gathering a user generated input sequence. */
+	void DetectAnyKeyPress(FKey key);
+
+	/** Detect any key release for gathering a user generated input sequence. */
+	void DetectAnyKeyRelease(FKey key);
 	
 	/** Fires a projectile. */
 	void OnFire();
@@ -138,5 +146,16 @@ public:
 	/** Returns FirstPersonCameraComponent subobject **/
 	FORCEINLINE class UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
 
+/*
+*						LAC Recording
+*/
+protected:
+	/** Gathers all the keyboard and mouse keys bound to an action and/or axis. */
+	void getAllBoundKeys();
+
+	/** Records a LAC sequence for using in LAC Tests. */
+	void recordLACSequence();
+
+	TArray<FString> boundKeys;
 };
 

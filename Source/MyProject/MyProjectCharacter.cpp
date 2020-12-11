@@ -11,6 +11,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "MotionControllerComponent.h"
 #include "XRMotionControllerBase.h" // for FXRMotionControllerBase::RightHandSourceId
+#include "GameFramework/InputSettings.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogFPChar, Warning, All);
 
@@ -89,6 +90,9 @@ void AMyProjectCharacter::BeginPlay()
 	// Call the base class  
 	Super::BeginPlay();
 
+	//Setup the LAC recording
+	getAllBoundKeys();
+
 	//Attach gun mesh component to Skeleton, doing it here because the skeleton is not yet created in the constructor
 	FP_Gun->AttachToComponent(Mesh1P, FAttachmentTransformRules(EAttachmentRule::SnapToTarget, true), TEXT("GripPoint"));
 
@@ -125,6 +129,9 @@ void AMyProjectCharacter::SetupPlayerInputComponent(class UInputComponent* Playe
 
 	PlayerInputComponent->BindAction("ResetVR", IE_Pressed, this, &AMyProjectCharacter::OnResetVR);
 
+	PlayerInputComponent->BindAction("AnyKey", IE_Pressed, this, &AMyProjectCharacter::DetectAnyKeyPress);
+	PlayerInputComponent->BindAction("AnyKey", IE_Released, this, &AMyProjectCharacter::DetectAnyKeyRelease);
+
 	// Bind movement events
 	PlayerInputComponent->BindAxis("MoveForward", this, &AMyProjectCharacter::MoveForward);
 	PlayerInputComponent->BindAxis("MoveRight", this, &AMyProjectCharacter::MoveRight);
@@ -138,8 +145,20 @@ void AMyProjectCharacter::SetupPlayerInputComponent(class UInputComponent* Playe
 	PlayerInputComponent->BindAxis("LookUpRate", this, &AMyProjectCharacter::LookUpAtRate);
 }
 
+void AMyProjectCharacter::DetectAnyKeyPress(FKey key) {
+	GEditor->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString("key press: " + key.ToString()));
+	//UE_LOG(LogTemp, Warning, TEXT("key press/release: %s"), *key.ToString());
+}
+
+void AMyProjectCharacter::DetectAnyKeyRelease(FKey key) {
+	GEditor->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString("key release: " + key.ToString()));
+	//UE_LOG(LogTemp, Warning, TEXT("key press/release: %s"), *key.ToString());
+}
+
 void AMyProjectCharacter::OnFire()
 {
+	GEditor->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString("Firing the weapon"));
+	UE_LOG(LogTemp, Warning, TEXT("Firing the weapon"));
 	// try and fire a projectile
 	if (ProjectileClass != NULL)
 	{
@@ -297,4 +316,32 @@ bool AMyProjectCharacter::EnableTouchscreenMovement(class UInputComponent* Playe
 	}
 	
 	return false;
+}
+
+void AMyProjectCharacter::Tick(float DeltaTime) {
+	Super::Tick(DeltaTime);
+	recordLACSequence();
+}
+
+void AMyProjectCharacter::getAllBoundKeys() {
+	TArray<FInputActionKeyMapping> actionMappings = GetDefault<UInputSettings>()->GetActionMappings();
+	TArray<FInputAxisKeyMapping> axisMappings = GetDefault<UInputSettings>()->GetAxisMappings();
+	for (int i = 0; i < actionMappings.Num(); i++) {
+		FString key = actionMappings[i].Key.ToString();
+		if (!actionMappings[i].Key.IsGamepadKey() || actionMappings[i].Key.IsMouseButton()) {
+			UE_LOG(LogTemp, Warning, TEXT("Following key is bound to an action: %s"), *key);
+			boundKeys.Add(key);
+		}
+	}
+	for (int i = 0; i < axisMappings.Num(); i++) {
+		FString key = axisMappings[i].Key.ToString();
+		if (key != "MouseX" && key != "MouseY" && (!axisMappings[i].Key.IsGamepadKey() || axisMappings[i].Key.IsMouseButton())) {
+			UE_LOG(LogTemp, Warning, TEXT("Following key is bound to an axis: %s"), *key);
+			boundKeys.Add(key);
+		}
+	}
+}
+
+void AMyProjectCharacter::recordLACSequence() {
+
 }

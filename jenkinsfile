@@ -1,55 +1,262 @@
+def FAILED_STAGE = ''
+def PROJECT_NAME = ''
+
 pipeline{
-	stages {
-		stage('Clean-up') {
-			steps {
-				bat'rd /s /q temp'
-				bat'del /q "$WORKSPACE/builds/Development/MyProject/"'
-			}
-		}
+	agent any
+	
+	environment{
+	    //##################
+	    //##### Config #####
+	    //##################
+		/*
+		<----------------Tools---------------->
+		*/
+	    //Path to the 7-Zip installation on this device
+	    //e.g. "C:/Program Files/7-Zip/7z.exe"
+	    ZIP = "D:/Program Files/7-Zip/7z.exe"
+	    //Path to the Unreal Engine root folder
+		//e.g. "C:/Program Files/Epic Games/UE_4.25/"
+		UNREAL_ENGINE_ROOT = "D:/Program Files/Epic Games/UE_4.25"		
+		//Path to the Unreal Build Tool from the Unreal Engine root folder
+	    //e.g. "Engine/Binaries/DotNet/UnrealBuildTool.exe"
+	    UNREAL_BUILD_TOOL = "/Engine/Binaries/DotNet/UnrealBuildTool.exe"
+	    //Path to the Unreal Automation Tool from the Unreal Engine root folder
+	    //e.g. "Engine/Build/BatchFiles/RunUAT.bat"
+	    UNREAL_AUTOMATION_TOOL = "/Engine/Build/BatchFiles/RunUAT.bat"
+		//Path to the Unreal Engine marketplace plugins from the Unreal Engine root folder
+		//e.g. "Engine/Plugins/Marketplace"
+		UNREAL_MARKETPLACE = "/Engine/Plugins/Marketplace"
+	    //Path to the MS Build installation on this device
+	    //e.g. "C:/Program Files/Microsoft Visual Studio/2019/Community/MSBuild/Current/Bin/MSBuild.exe"
+	    MSBUILD = "C:/Program Files (x86)/Microsoft Visual Studio/2019/Community/MSBuild/Current/Bin/MSBuild.exe"
+		/*
+		<----------------Git---------------->
+		*/
+		//URL of the git repository
+        //e.g. 'https://github.com/Username/My-Unreal-Project.git'
+        REPO_URL = 'https://Cininet@dev.azure.com/Cininet/FwESI/_git/FwESI'
+        //Jenkin credential ID to use for the git repo
+        //e.g. 'GitID'
+        GIT_CREDENTIALS = 'GitID_Cininet'
+        //Which branch of the repository Jenkins should pull
+        //e.g. 'master'
+        GIT_BRANCH = 'release/0.7.0'
+		/*
+		<----------------Plugins & Save Data---------------->
+		*/
+		//Path to DcxVehicles plugin from the project root folder
+		//e.g. "/Resources/DcxVehicles_4.25.zip"
+		UNREAL_ADD_PLUGIN = "/Resources/DcxVehicle_4.25.zip"
+		//Path to the debug save data
+		//e.g. "C:/FwESI.zip"
+		DEBUG_SAVE_DATA = "D:/FwESI.zip"
 
+	}
+    stages {
+		
 		stage('Git-pull') {
-			steps {
-				git branch: 'master',
-					credentialsId: 'GitID',
-					url: 'https://github.com/SLHartmann/Unreal-Engine-CI-Test.git'
+			steps{
+				checkout([$class: 'GitSCM', 
+					branches: [[name: """$GIT_BRANCH"""]], 
+					doGenerateSubmoduleConfigurations: false, 
+					extensions: [[$class: 'GitLFSPull']], 
+					submoduleCfg: [], 
+					userRemoteConfigs: [[credentialsId: """$GIT_CREDENTIALS""", url: """$REPO_URL"""]]])
 			}
 		}
+		
+		stage('Retrieve-Git-Info'){
+		    steps{
+		        bat """echo Current Stage: ${env.STAGE_NAME}"""
+		        script {
+		            FAILED_STAGE = env.STAGE_NAME
+		            //Get the last mail adress of the last commit
+					def details = bat (
+                        script: 'git --no-pager show -s --format=%%ae',
+                        returnStdout: true
+                    )
+                    //def arrD = details.tokenize('\n')
+                    //def email = arrD[2].trim()
+					details = (details.tokenize('\n'))[2].trim()
+                    writeFile(file: 'temp.txt', text: details)
+                    env.LAST_COMMIT_MAIL_ADRESS = details
+					//Get the last commit hash
+					def hash = bat (
+						script: 'git log -n 1 --pretty=format:%%h',
+						returnStdout: true
+						).trim()
+					hash = (hash.tokenize('\n'))[1]
+					env.LAST_COMMIT_HASH = hash
+					writeFile(file: 'hash.txt', text: hash)
+					//Get the project name via the .uproject-file
+					def projName = bat (
+						script: 'dir *.uproject /b',
+						returnStdout: true
+					)
+					//def arrP = projName.tokenize('\n')
+					//PROJECT_NAME = arrP[2].replaceAll(~/\.uproject.*/, "")
+					PROJECT_NAME = (projName.tokenize('\n'))[2].replaceAll(~/\.uproject.*/, "")
+					writeFile(file: 'project_name.txt', text: PROJECT_NAME)
+		        }
+		    }
+		}
+		
+		stage('Clean-up') {
+		    steps {
+				bat """echo Current Stage: ${env.STAGE_NAME}"""
+		        script{
+		            FAILED_STAGE = env.STAGE_NAME
+		        }
+				//Clean up the results from the last build
+                bat 'if exist temp rd /s /q temp'
+                bat """ if exist "$WORKSPACE/builds/Development/$PROJECT_NAME/" del /q "$WORKSPACE/builds/Development/$PROJECT_NAME/" """
+                //bat """echo ${env.LAST_COMMIT_MAIL_ADRESS}"""
+		    }
+	    }
 
+		stage('Configure-Build'){
+			steps {
+				//Place additional plugin in marketplace folder, change porject version to reflect current build
+				bat """echo Current Stage: ${env.STAGE_NAME}"""
+		        script{
+		            FAILED_STAGE = env.STAGE_NAME
+		        }
+				bat""" "${ZIP}" x "${WORKSPACE}${UNREAL_ADD_PLUGIN}" -o"${UNREAL_ENGINE_ROOT}${UNREAL_MARKETPLACE}" -aoa"""
+				//change unreal project version to reflect current build
+				script{
+					addBuildVersion()
+				}
+			}
+		}
+		
 		stage('UBT') {
 			steps {
-				bat'"D:/Program Files/Epic Games/UE_4.25/Engine/Binaries/DotNet/UnrealBuildTool.exe" -projectfiles -project="$WORKSPACE\MyProject.uproject" -game -rocket -progress'
+				bat """echo Current Stage: ${env.STAGE_NAME}"""
+			    script{
+		            FAILED_STAGE = env.STAGE_NAME
+		        }
+				//Call the UBT to generate VS project files
+				bat""" "${UNREAL_ENGINE_ROOT}${UNREAL_BUILD_TOOL}" -projectfiles -project="$WORKSPACE/${PROJECT_NAME}.uproject" -game -rocket -progress """
 			}
 		}
 
 		stage('Build-VS') {
 			steps {
-				bat'"C:/Program Files (x86)/Microsoft Visual Studio/2019/Community/MSBuild/Current/Bin/MSBuild.exe" "MyProject.sln" /t:build /p:Configuration="Development Editor";Platform=Win64;verbosity=diagnostic'
+				bat """echo Current Stage: ${env.STAGE_NAME}"""
+			    script{
+		            FAILED_STAGE = env.STAGE_NAME
+		        }
+				//Build the project in Visual Studio
+				bat""" "$MSBUILD" "${PROJECT_NAME}.sln" /t:build /p:Configuration="Development Editor";Platform=Win64;verbosity=diagnostic """
 			}
 		}
 
 		stage('Tests') {
 			steps {
-				bat'echo "test not yet working. continuing with unreal build.'
+				bat """echo Current Stage: ${env.STAGE_NAME}"""
+			    script{
+		            FAILED_STAGE = env.STAGE_NAME
+		        }
+				//Run tests
+				bat 'echo "tests not yet working. continuing with unreal build."'
 			}
 		}
 
 		stage('Build-Unreal') {
 			steps {
-				bat'"D:/Program Files/Epic Games/UE_4.25/Engine/Build/BatchFiles/RunUAT.bat" BuildCookRun -rocket -compileeditor -installed -nop4 -project="$WORKSPACE/MyProject.uproject" -cook -stage -archive -archivedirectory="$WORKSPACE/temp/Development/x64" -package -clientconfig=Development -ue4exe=UE4Editor-Cmd.exe -clean -pak -prereqs -distribution -nodebuginfo -targetplatform=Win64 -build -utf8output'
+				bat """ echo Current Stage: ${env.STAGE_NAME}"""
+			    script{
+		            FAILED_STAGE = env.STAGE_NAME
+		        }
+				//Call the UAT to build and cook the project
+				bat """ "${UNREAL_ENGINE_ROOT}${UNREAL_AUTOMATION_TOOL}" BuildCookRun -rocket -compileeditor -installed -nop4 -project="$WORKSPACE/${PROJECT_NAME}.uproject" -cook -stage -archive -archivedirectory="$WORKSPACE/temp/Development/x64" -package -clientconfig=Development -ue4exe=UE4Editor-Cmd.exe -clean -pak -prereqs -distribution -nodebuginfo -targetplatform=Win64 -build -utf8output """
+
+				//Add save debug data to the build
+				bat """ "${ZIP}" x "${DEBUG_SAVE_DATA}" -o"${WORKSPACE}/temp" -aoa"""
+				bat """ md "${WORKSPACE}\\temp\\Development\\x64\\WindowsNoEditor\\FwESI\\Saved" """
+				bat """ move "${WORKSPACE}/temp/SaveData" "${WORKSPACE}/temp/Development/x64/WindowsNoEditor" """
+				bat """ move "${WORKSPACE}/temp/SaveGames" "${WORKSPACE}/temp/Development/x64/WindowsNoEditor/FwESI/Saved" """
 			}
 		}
 
 		stage('Archive') {
 			steps {
-				bat'ren temp\Development\x64\WindowsNoEditor MyProject#$BUILD_NUMBER'
-				bat'"D:/Program Files/7-Zip/7z.exe" a -t7z builds/Development/MyProject/MyProject#$BUILD_NUMBER.rar "$WORKSPACE/temp/development/x64/MyProject#$BUILD_NUMBER"'
+				bat """ echo Current Stage: ${env.STAGE_NAME}"""
+			    script{
+		            FAILED_STAGE = env.STAGE_NAME
+		        }
+				//Rename the output folder and archive it
+				bat """ ren temp\\Development\\x64\\WindowsNoEditor "${PROJECT_NAME}_${env.PROJECT_VERSION}#${BUILD_NUMBER}_${LAST_COMMIT_HASH}" """
+				bat """ "$ZIP" a -tzip "builds/Development/$PROJECT_NAME/${PROJECT_NAME}_${env.PROJECT_VERSION}#${BUILD_NUMBER}_${LAST_COMMIT_HASH}.zip" "$WORKSPACE/temp/development/x64/${PROJECT_NAME}_${env.PROJECT_VERSION}#${BUILD_NUMBER}_${LAST_COMMIT_HASH}" """
 			}
 		}
 
 		stage('Email') {
 			steps {
-				// One or more steps need to be included within the steps block.
+				bat """ echo Current Stage: ${env.STAGE_NAME}"""
+			    script{
+		            FAILED_STAGE = env.STAGE_NAME
+		        }
+				bat 'echo "not yet done."'
 			}
 		}
 	}
+	post{
+	    success{
+	        echo "All stages finished successfully. Build successfull"
+            echo "Saving build artifacts under "
+            archiveArtifacts artifacts: 'builds/**/*.zip'
+	    }
+		failure{
+			echo """Failed stage: ${FAILED_STAGE}"""
+			echo """Sending mail to ${env.LAST_COMMIT_MAIL_ADRESS}"""
+			retrieveErrorLog(FAILED_STAGE)
+			writeErrorLogToFile()
+		}
+	}
+}
+
+@NonCPS
+def retrieveErrorLog(stageName){
+    def logFile = currentBuild.rawBuild.getLogInputStream()
+    def outputString = logFile.getText("UTF-8")
+    outputString = outputString.replaceAll(~/([\x00-\x09]|[\x1B-\x1F]|\x7F).*?([\x00-\x09]|[\x1B-\x1F]|\x7F).*\[/, "")
+    def outputStringArray = outputString.split("\n")
+    def output = ""
+	def logSwitch = false
+    for(s in outputStringArray){
+		if(logSwitch){
+			if(!s.contains("]")){
+				output += s + "\n"
+			}
+		}else{
+			if(s.contains(stageName)){
+			    output += "############ START OF ERROR LOG ############"
+				logSwitch = true
+			}
+		}	
+    }
+    output += "############# END OF ERROR LOG #############\n"
+	output += """You can find the entire log here: ${BUILD_URL}consoleText"""
+	env.ERROR_LOG = output
+    echo """ErrorLog_ \n${output}"""
+}
+
+def writeErrorLogToFile(){
+	writeFile(file: 'ErrorLog.log', text: env.ERROR_LOG)
+}
+
+@NonCPS
+def addBuildVersion(){
+	def lines = new File("""${WORKSPACE}/Config/DefaultGame.ini""").readLines()
+	def output = ""
+	for(s in lines){
+		if(s.contains('ProjectVersion')){
+			output += s + "#${env.BUILD_NUMBER}.${env.LAST_COMMIT_HASH}" + "\n"
+			env.PROJECT_VERSION = s.replaceAll(~/.*=/, "")
+		}else{
+			output += s + "\n"
+		}
+	}
+	writeFile(file: "Config/DefaultGame.ini", text: output)
 }
