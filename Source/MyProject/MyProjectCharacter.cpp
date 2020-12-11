@@ -343,5 +343,13 @@ void AMyProjectCharacter::getAllBoundKeys() {
 }
 
 void AMyProjectCharacter::recordLACSequence() {
-
+	UPlayerInput *pi = GetWorld()->GetFirstPlayerController()->PlayerInput;
+	for (int i = 0; i < boundKeys.Num(); i++) {
+		if (pi->WasJustPressed(FKey(TCHAR_TO_ANSI(*boundKeys[i])))) {
+			UE_LOG(LogTemp, Warning, TEXT("Following key was just pressed: %s"), *boundKeys[i]);
+		}
+		if (pi->WasJustReleased(FKey(TCHAR_TO_ANSI(*boundKeys[i])))) {
+			UE_LOG(LogTemp, Warning, TEXT("Following key was just pressed: %s"), *boundKeys[i]);
+		}
+	}
 }
