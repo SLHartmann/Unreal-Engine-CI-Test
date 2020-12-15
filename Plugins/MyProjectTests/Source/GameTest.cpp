@@ -180,21 +180,21 @@ bool FReleaseOneKey::Update() {
     return true;
 }
 
-DEFINE_LATENT_AUTOMATION_COMMAND_TWO_PARAMETER(FSingleKeyPressDelay, FString, key, float, delay);
+DEFINE_LATENT_AUTOMATION_COMMAND_TWO_PARAMETER(FSingleKeyPressDelay, FString, key, double, delay);
 bool FSingleKeyPressDelay::Update() {
+    ADD_LATENT_AUTOMATION_COMMAND(FWaitLatentCommand(delay));
     ADD_LATENT_AUTOMATION_COMMAND(FPressOneKey(key));
-    ADD_LATENT_AUTOMATION_COMMAND(FWaitLatentCommand(delay));
     return true;
 }
 
-DEFINE_LATENT_AUTOMATION_COMMAND_TWO_PARAMETER(FSingleKeyReleaseDelay, FString, key, float, delay);
+DEFINE_LATENT_AUTOMATION_COMMAND_TWO_PARAMETER(FSingleKeyReleaseDelay, FString, key, double, delay);
 bool FSingleKeyReleaseDelay::Update() {
-    ADD_LATENT_AUTOMATION_COMMAND(FReleaseOneKey(key));
     ADD_LATENT_AUTOMATION_COMMAND(FWaitLatentCommand(delay));
+    ADD_LATENT_AUTOMATION_COMMAND(FReleaseOneKey(key));
     return true;
 }
 
-DEFINE_LATENT_AUTOMATION_COMMAND_THREE_PARAMETER(FSingleKeyPressReleaseWithDelay, FString, key, float, delay_press, float, delay_release);
+DEFINE_LATENT_AUTOMATION_COMMAND_THREE_PARAMETER(FSingleKeyPressReleaseWithDelay, FString, key, double, delay_press, double, delay_release);
 bool FSingleKeyPressReleaseWithDelay::Update() {
     ADD_LATENT_AUTOMATION_COMMAND(FPressOneKey(key));
     ADD_LATENT_AUTOMATION_COMMAND(FWaitLatentCommand(delay_press));
@@ -241,17 +241,40 @@ bool FTwoAxisInputSmooth::Update() {
     return true;
 }
 
-DEFINE_LATENT_AUTOMATION_COMMAND_FOUR_PARAMETER(FSingleAxisInputSmoothDelay, FString, key, float, value, float, duration, float, delay);
+DEFINE_LATENT_AUTOMATION_COMMAND_FOUR_PARAMETER(FSingleAxisInputSmoothDelay, FString, key, float, value, float, duration, double, delay);
 bool FSingleAxisInputSmoothDelay::Update() {
     ADD_LATENT_AUTOMATION_COMMAND(FAxisInputSmooth(key, value, duration));
     ADD_LATENT_AUTOMATION_COMMAND(FWaitLatentCommand(delay));
     return true;
 }
 
-DEFINE_LATENT_AUTOMATION_COMMAND_FOUR_PARAMETER(FTwoAxisInputSmoothDelay, float, valueX, float, valueY, float, duration, float, delay);
+DEFINE_LATENT_AUTOMATION_COMMAND_FOUR_PARAMETER(FTwoAxisInputSmoothDelay, float, valueX, float, valueY, float, duration, double, delay);
 bool FTwoAxisInputSmoothDelay::Update() {
     ADD_LATENT_AUTOMATION_COMMAND(FTwoAxisInputSmooth(valueX, valueY, duration));
     ADD_LATENT_AUTOMATION_COMMAND(FWaitLatentCommand(delay));
+    return true;
+}
+
+/*
+*                               Check Conditions
+*/
+
+DEFINE_LATENT_AUTOMATION_COMMAND_FOUR_PARAMETER(FCheckPlayerPosition, bool*, ret, float, x, float, y, float, z);
+bool FCheckPlayerPosition::Update() {
+    APlayerController* pc = GetTestWorld()->GetFirstPlayerController();
+    FVector loc = pc->GetPawn()->GetActorLocation();
+    UE_LOG(LogTemp, Warning, TEXT("X should be %f, is %f"), x, loc.X);
+    if (loc.X <= x-1 || loc.X >= x+1) {
+        ret = false;
+    }
+    UE_LOG(LogTemp, Warning, TEXT("X should be %f, is %f"), y, loc.Y);
+    if (loc.Y <= y - 1 || loc.Y >= y + 1) {
+        ret = false;
+    }
+    UE_LOG(LogTemp, Warning, TEXT("X should be %f, is %f"), z, loc.Z);
+    if (loc.Z <= z - 1 || loc.Z >= z + 1) {
+        ret = false;
+    }
     return true;
 }
 
@@ -287,6 +310,23 @@ bool FMyProjectLACTest::RunTest(const FString& Parameters) {
     ADD_LATENT_AUTOMATION_COMMAND(FSingleKeyPressReleaseWithDelay("LeftMouseButton", 0.2f, 0.4f));
     ADD_LATENT_AUTOMATION_COMMAND(FSingleKeyReleaseDelay("S", 0.0f));
     ADD_LATENT_AUTOMATION_COMMAND(FSingleKeyReleaseDelay("A", 2.0f));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMyProjectRecordedSequence, "TestGroup.My Project Recorded LAC Sequence", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ServerContext | EAutomationTestFlags::CommandletContext | EAutomationTestFlags::ClientContext);
+bool FMyProjectRecordedSequence::RunTest(const FString& Parameters) {
+    //Init test map/wait for it to load
+    FString mapName = "/Game/FirstPersonCPP/Maps/FirstPersonExampleMap";
+    AutomationOpenMap(mapName);
+    bool* ret = new bool;
+    *ret = true;
+    ADD_LATENT_AUTOMATION_COMMAND(FWaitLatentCommand(2.0f));
+
+    /** Insert LAC sequence below */
+    FTimerHandle myHandle;
+    GetTestWorld()->GetTimerManager().SetTimer(myHandle, &MyClass::PressOneKey, 1.0f, false);
+    /** Insert LAC sequence above */
+
     return true;
 }
 
@@ -346,3 +386,17 @@ bool ue4EditorInput() {
         return false;
     }
 }
+
+class MyClass {
+public:
+    void MyClass::PressOneKey() {
+        APlayerController* pc = GetTestWorld()->GetFirstPlayerController();
+        pc->InputKey(FKey("W"), EInputEvent::IE_Pressed, 1.0f, false);
+    }
+
+    void MyClass::ReleaseOneKey() {
+        APlayerController* pc = GetTestWorld()->GetFirstPlayerController();
+        pc->InputKey(FKey("W"), EInputEvent::IE_Released, 1.0f, false);
+    }
+
+};

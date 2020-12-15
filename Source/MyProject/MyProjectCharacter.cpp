@@ -12,6 +12,8 @@
 #include "MotionControllerComponent.h"
 #include "XRMotionControllerBase.h" // for FXRMotionControllerBase::RightHandSourceId
 #include "GameFramework/InputSettings.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogFPChar, Warning, All);
 
@@ -92,6 +94,7 @@ void AMyProjectCharacter::BeginPlay()
 
 	//Setup the LAC recording
 	getAllBoundKeys();
+	sequence.Add(LACAction("", FPlatformTime::Seconds(), false));
 
 	//Attach gun mesh component to Skeleton, doing it here because the skeleton is not yet created in the constructor
 	FP_Gun->AttachToComponent(Mesh1P, FAttachmentTransformRules(EAttachmentRule::SnapToTarget, true), TEXT("GripPoint"));
@@ -320,7 +323,10 @@ bool AMyProjectCharacter::EnableTouchscreenMovement(class UInputComponent* Playe
 
 void AMyProjectCharacter::Tick(float DeltaTime) {
 	Super::Tick(DeltaTime);
-	recordLACSequence();
+	checkForRecording();
+	if (recording) {
+		recordLACSequence();
+	}
 }
 
 void AMyProjectCharacter::getAllBoundKeys() {
@@ -347,9 +353,41 @@ void AMyProjectCharacter::recordLACSequence() {
 	for (int i = 0; i < boundKeys.Num(); i++) {
 		if (pi->WasJustPressed(FKey(TCHAR_TO_ANSI(*boundKeys[i])))) {
 			UE_LOG(LogTemp, Warning, TEXT("Following key was just pressed: %s"), *boundKeys[i]);
+			sequence.Add(LACAction(boundKeys[i], FPlatformTime::Seconds(), true));
 		}
 		if (pi->WasJustReleased(FKey(TCHAR_TO_ANSI(*boundKeys[i])))) {
 			UE_LOG(LogTemp, Warning, TEXT("Following key was just pressed: %s"), *boundKeys[i]);
+			sequence.Add(LACAction(boundKeys[i], FPlatformTime::Seconds(), false));
 		}
+	}
+}
+
+void AMyProjectCharacter::checkForRecording() {
+	UPlayerInput* pi = GetWorld()->GetFirstPlayerController()->PlayerInput;
+	if (pi->WasJustReleased(FKey("NumPadNine")) && !recording) {
+		//Start the recording
+		recording = !recording;
+		UE_LOG(LogTemp, Warning, TEXT("Recording started!"));
+	}
+	else if (pi->WasJustReleased(FKey("NumPadNine")) && recording) {
+		//Done recording, convert sequence and save to file
+		recording = !recording;
+		UE_LOG(LogTemp, Warning, TEXT("Recording finished!"));
+		UE_LOG(LogTemp, Warning, TEXT("Saving sequence to: %s"), *FPaths::GameDevelopersDir());
+		TArray<FString> output;
+		for (int i = 1; i < sequence.Num(); i++) {
+			FString s;
+			if (sequence[i].type) {
+				s = "ADD_LATENT_AUTOMATION_COMMAND(FSingleKeyPressDelay(\"" + sequence[i].key + "\", " + FString::SanitizeFloat(sequence[i].delay-sequence[i-1].delay) + "));";
+			}
+			else {
+				s = "ADD_LATENT_AUTOMATION_COMMAND(FSingleKeyReleaseDelay(\"" + sequence[i].key + "\", " + FString::SanitizeFloat(sequence[i].delay - sequence[i - 1].delay) + "));";
+			}
+			output.Add(s);
+		}
+		FVector location = GetWorld()->GetFirstPlayerController()->GetPawn()->GetActorLocation();
+		output.Add(FString("ADD_LATENT_AUTOMATION_COMMAND(FCheckPlayerPosition(ret, " + FString::SanitizeFloat(location.X) + "f, " + FString::SanitizeFloat(location.Y) + "f, " + FString::SanitizeFloat(location.Z) + "f));"));
+		FString FilePath = FPaths::ConvertRelativePathToFull(FPaths::GameDevelopersDir() + TEXT("LACSequence"));
+		FFileHelper::SaveStringArrayToFile(output, *FilePath, FFileHelper::EEncodingOptions::AutoDetect, &IFileManager::Get(), EFileWrite::FILEWRITE_Append);
 	}
 }

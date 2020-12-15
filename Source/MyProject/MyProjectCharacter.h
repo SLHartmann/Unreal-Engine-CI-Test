@@ -156,6 +156,24 @@ protected:
 	/** Records a LAC sequence for using in LAC Tests. */
 	void recordLACSequence();
 
+	/** Checks for the spcecified key to be pressed, starts the recording and saves it to a file when done. */
+	void checkForRecording();
+
+	struct LACAction {
+		FString key = "";
+		double delay = 0.0;
+		bool type = 0;
+		LACAction(FString k, double d, bool t) {
+			key = k;
+			delay = d;
+			type = t;
+		}
+	};
+
 	TArray<FString> boundKeys;
+
+	TArray<LACAction> sequence;
+
+	bool recording = false;
 };
 
