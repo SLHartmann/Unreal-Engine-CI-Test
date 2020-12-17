@@ -92,10 +92,11 @@ void AMyProjectCharacter::BeginPlay()
 	// Call the base class  
 	Super::BeginPlay();
 
+	PrimaryActorTick.bCanEverTick = true;
+
 	//Setup the LAC recording
 	getAllBoundKeys();
-	sequence.Add(LACAction("", FPlatformTime::Seconds(), false));
-
+	
 	//Attach gun mesh component to Skeleton, doing it here because the skeleton is not yet created in the constructor
 	FP_Gun->AttachToComponent(Mesh1P, FAttachmentTransformRules(EAttachmentRule::SnapToTarget, true), TEXT("GripPoint"));
 
@@ -323,9 +324,11 @@ bool AMyProjectCharacter::EnableTouchscreenMovement(class UInputComponent* Playe
 
 void AMyProjectCharacter::Tick(float DeltaTime) {
 	Super::Tick(DeltaTime);
+	//checkForRecordingOld();
 	checkForRecording();
 	if (recording) {
-		recordLACSequence();
+		double delta = FPlatformTime::Seconds();
+		recordLACSequence(delta);
 	}
 }
 
@@ -348,25 +351,26 @@ void AMyProjectCharacter::getAllBoundKeys() {
 	}
 }
 
-void AMyProjectCharacter::recordLACSequence() {
+void AMyProjectCharacter::recordLACSequence(double delta) {
 	UPlayerInput *pi = GetWorld()->GetFirstPlayerController()->PlayerInput;
 	for (int i = 0; i < boundKeys.Num(); i++) {
 		if (pi->WasJustPressed(FKey(TCHAR_TO_ANSI(*boundKeys[i])))) {
-			UE_LOG(LogTemp, Warning, TEXT("Following key was just pressed: %s"), *boundKeys[i]);
-			sequence.Add(LACAction(boundKeys[i], FPlatformTime::Seconds(), true));
+			UE_LOG(LogTemp, Warning, TEXT("Following key was just pressed at %f: %s"), delta, *boundKeys[i]);
+			sequence.Add(LACAction(boundKeys[i], delta /*FPlatformTime::Seconds()*/, true));
 		}
 		if (pi->WasJustReleased(FKey(TCHAR_TO_ANSI(*boundKeys[i])))) {
-			UE_LOG(LogTemp, Warning, TEXT("Following key was just pressed: %s"), *boundKeys[i]);
-			sequence.Add(LACAction(boundKeys[i], FPlatformTime::Seconds(), false));
+			UE_LOG(LogTemp, Warning, TEXT("Following key was just released at %f: %s"), delta, *boundKeys[i]);
+			sequence.Add(LACAction(boundKeys[i], delta /*FPlatformTime::Seconds()*/, false));
 		}
 	}
 }
 
-void AMyProjectCharacter::checkForRecording() {
+void AMyProjectCharacter::checkForRecordingOld() {
 	UPlayerInput* pi = GetWorld()->GetFirstPlayerController()->PlayerInput;
 	if (pi->WasJustReleased(FKey("NumPadNine")) && !recording) {
 		//Start the recording
 		recording = !recording;
+		sequence.Add(LACAction("", FPlatformTime::Seconds(), false));
 		UE_LOG(LogTemp, Warning, TEXT("Recording started!"));
 	}
 	else if (pi->WasJustReleased(FKey("NumPadNine")) && recording) {
@@ -378,16 +382,49 @@ void AMyProjectCharacter::checkForRecording() {
 		for (int i = 1; i < sequence.Num(); i++) {
 			FString s;
 			if (sequence[i].type) {
-				s = "ADD_LATENT_AUTOMATION_COMMAND(FSingleKeyPressDelay(\"" + sequence[i].key + "\", " + FString::SanitizeFloat(sequence[i].delay-sequence[i-1].delay) + "));";
+				s = "ADD_LATENT_AUTOMATION_COMMAND(FSKPD(\"" + sequence[i].key + "\", " + FString::SanitizeFloat(sequence[i].delay-sequence[i-1].delay) + "));";
 			}
 			else {
-				s = "ADD_LATENT_AUTOMATION_COMMAND(FSingleKeyReleaseDelay(\"" + sequence[i].key + "\", " + FString::SanitizeFloat(sequence[i].delay - sequence[i - 1].delay) + "));";
+				s = "ADD_LATENT_AUTOMATION_COMMAND(FSKRD(\"" + sequence[i].key + "\", " + FString::SanitizeFloat(sequence[i].delay - sequence[i - 1].delay) + "));";
 			}
 			output.Add(s);
 		}
 		FVector location = GetWorld()->GetFirstPlayerController()->GetPawn()->GetActorLocation();
-		output.Add(FString("ADD_LATENT_AUTOMATION_COMMAND(FCheckPlayerPosition(ret, " + FString::SanitizeFloat(location.X) + "f, " + FString::SanitizeFloat(location.Y) + "f, " + FString::SanitizeFloat(location.Z) + "f));"));
-		FString FilePath = FPaths::ConvertRelativePathToFull(FPaths::GameDevelopersDir() + TEXT("LACSequence"));
+		//output.Add(FString("ADD_LATENT_AUTOMATION_COMMAND(FCheckPlayerPosition(ret, " + FString::SanitizeFloat(location.X) + "f, " + FString::SanitizeFloat(location.Y) + "f, " + FString::SanitizeFloat(location.Z) + "f));"));
+		FString FilePath = FPaths::ConvertRelativePathToFull(FPaths::GameDevelopersDir() + TEXT("LACSequence.txt"));
+		FFileHelper::SaveStringArrayToFile(output, *FilePath, FFileHelper::EEncodingOptions::AutoDetect, &IFileManager::Get(), EFileWrite::FILEWRITE_Append);
+	}
+}
+
+void AMyProjectCharacter::checkForRecording() {
+	UPlayerInput* pi = GetWorld()->GetFirstPlayerController()->PlayerInput;
+	if (pi->WasJustReleased(FKey("NumPadNine")) && !recording) {
+		//Start the recording
+		recording = !recording;
+		sequence.Add(LACAction("", FPlatformTime::Seconds(), false));
+		UE_LOG(LogTemp, Warning, TEXT("Recording started!"));
+	}
+	else if (pi->WasJustReleased(FKey("NumPadNine")) && recording) {
+		//Done recording, convert sequence and save to file
+		recording = !recording;
+		UE_LOG(LogTemp, Warning, TEXT("Recording finished!"));
+		UE_LOG(LogTemp, Warning, TEXT("Saving sequence to: %s"), *FPaths::GameDevelopersDir());
+		TArray<FString> output;
+		for (int i = 1; i < sequence.Num(); i++) {
+			FString s;
+			if (sequence[i].type) {
+				//press
+				s = sequence[i].key + "|" + FString::SanitizeFloat(sequence[i].delay - sequence[i - 1].delay) + "|1";
+			}
+			else {
+				//release
+				s = sequence[i].key + "|" + FString::SanitizeFloat(sequence[i].delay - sequence[i - 1].delay) + "|0";
+			}
+			output.Add(s);
+		}
+		FVector location = GetWorld()->GetFirstPlayerController()->GetPawn()->GetActorLocation();
+		//output.Add(FString("ADD_LATENT_AUTOMATION_COMMAND(FCheckPlayerPosition(ret, " + FString::SanitizeFloat(location.X) + "f, " + FString::SanitizeFloat(location.Y) + "f, " + FString::SanitizeFloat(location.Z) + "f));"));
+		FString FilePath = FPaths::ConvertRelativePathToFull(FPaths::GameDevelopersDir() + TEXT("LACSequence.txt"));
 		FFileHelper::SaveStringArrayToFile(output, *FilePath, FFileHelper::EEncodingOptions::AutoDetect, &IFileManager::Get(), EFileWrite::FILEWRITE_Append);
 	}
 }

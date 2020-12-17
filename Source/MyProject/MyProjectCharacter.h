@@ -154,10 +154,15 @@ protected:
 	void getAllBoundKeys();
 
 	/** Records a LAC sequence for using in LAC Tests. */
-	void recordLACSequence();
+	void recordLACSequence(double);
+
+	/** Checks for the spcecified key to be pressed, starts the recording and saves it to a file when done. */
+	void checkForRecordingOld();
 
 	/** Checks for the spcecified key to be pressed, starts the recording and saves it to a file when done. */
 	void checkForRecording();
+
+
 
 	struct LACAction {
 		FString key = "";

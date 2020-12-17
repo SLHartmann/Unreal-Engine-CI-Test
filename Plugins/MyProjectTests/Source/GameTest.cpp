@@ -12,8 +12,24 @@
 #include "AutomationDriverTypeDefs.h"
 #include <MyProject/MyProjectCharacter.h>
 #include <MyProject/MyProject.h>
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+
+struct LACAction {
+    FString key = "";
+    double delay = 0.0;
+    bool type = 0;
+    LACAction(FString k, double d, bool t) {
+        key = k;
+        delay = d;
+        type = t;
+    }
+};
 
 UWorld* GetTestWorld();
+void readLACSequence(TArray<LACAction> &);
+
+
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMyProjectPlaceholderTest, "TestGroup.TestSubgroup.MyProject Placeholder Test", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ServerContext | EAutomationTestFlags::CommandletContext | EAutomationTestFlags::ClientContext)
 
@@ -203,6 +219,32 @@ bool FSingleKeyPressReleaseWithDelay::Update() {
     return true;
 }
 
+
+DEFINE_LATENT_AUTOMATION_COMMAND_TWO_PARAMETER(FSKPD, FString, key, double, delay);
+bool FSKPD::Update() {
+    const double NewTime = FPlatformTime::Seconds();
+    if (NewTime - StartTime < delay)
+    {
+        return false;
+    }
+    APlayerController* pc = GetTestWorld()->GetFirstPlayerController();
+    pc->InputKey(FKey(TCHAR_TO_ANSI(*key)), EInputEvent::IE_Pressed, 1.0f, false);
+    //Wait for confirmation that the event was received and processed
+    return true;
+}
+
+DEFINE_LATENT_AUTOMATION_COMMAND_TWO_PARAMETER(FSKRD, FString, key, double, delay);
+bool FSKRD::Update() {
+    const double NewTime = FPlatformTime::Seconds();
+    if (NewTime - StartTime < delay)
+    {
+        return false;
+    }
+    APlayerController* pc = GetTestWorld()->GetFirstPlayerController();
+    pc->InputKey(FKey(TCHAR_TO_ANSI(*key)), EInputEvent::IE_Released, 1.0f, false);
+    return true;
+}
+
 /*
 *                               MOUSE INPUT
 */
@@ -298,18 +340,68 @@ bool FMyProjectLACTest::RunTest(const FString& Parameters) {
     //Init test map/wait for it to load
     FString mapName = "/Game/FirstPersonCPP/Maps/FirstPersonExampleMap";
     AutomationOpenMap(mapName);
+    TArray<FString> keys;
+    keys.Add("W");
+    keys.Add("A");
+    keys.Add("A");
+    keys.Add("W");
+    keys.Add("D");
+    keys.Add("D");
+    keys.Add("SpaceBar");
+    keys.Add("D");
+    keys.Add("SpaceBar");
+    keys.Add("D");
+    TArray<double> delays;
+    delays.Add(0.225076);
+    delays.Add(0.124971);
+    delays.Add(1.383391);
+    delays.Add(1.499978);
+    delays.Add(0.058328);
+    delays.Add(1.191685);
+    delays.Add(0.316701);
+    delays.Add(0.124966);
+    delays.Add(0.024978);
+    delays.Add(0.675);
+    TArray<bool> types;
+    types.Add(true);
+    types.Add(true);
+    types.Add(false);
+    types.Add(false);
+    types.Add(true);
+    types.Add(false);
+    types.Add(true);
+    types.Add(true);
+    types.Add(false);
+    types.Add(false);
     ADD_LATENT_AUTOMATION_COMMAND(FWaitLatentCommand(2.0f));
 
     //Execute action sequence
-    ADD_LATENT_AUTOMATION_COMMAND(FSingleKeyPressDelay("W", 1.0f));
-    ADD_LATENT_AUTOMATION_COMMAND(FSingleKeyReleaseDelay("W", 2.0f));
-    ADD_LATENT_AUTOMATION_COMMAND(FSingleKeyPressReleaseWithDelay("SpaceBar", 0.1f, 2.0f));
-    ADD_LATENT_AUTOMATION_COMMAND(FSingleKeyPressDelay("A", 0.0f));
-    ADD_LATENT_AUTOMATION_COMMAND(FSingleKeyPressDelay("S", 0.5f));
-    ADD_LATENT_AUTOMATION_COMMAND(FSingleKeyPressReleaseWithDelay("LeftMouseButton", 0.2f, 0.4f));
-    ADD_LATENT_AUTOMATION_COMMAND(FSingleKeyPressReleaseWithDelay("LeftMouseButton", 0.2f, 0.4f));
-    ADD_LATENT_AUTOMATION_COMMAND(FSingleKeyReleaseDelay("S", 0.0f));
-    ADD_LATENT_AUTOMATION_COMMAND(FSingleKeyReleaseDelay("A", 2.0f));
+    for (int i = 0; i < keys.Num(); i++) {
+        if (types[i]) {
+            ADD_LATENT_AUTOMATION_COMMAND(FSKPD(keys[i], delays[i]));
+        }
+        else {
+            ADD_LATENT_AUTOMATION_COMMAND(FSKRD(keys[i], delays[i]));
+        }
+    }
+    
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMyProjectPlayLACSequence, "TestGroup.My Project Play LAC Sequence", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ServerContext | EAutomationTestFlags::CommandletContext | EAutomationTestFlags::ClientContext);
+bool FMyProjectPlayLACSequence::RunTest(const FString& Parameters) {
+    FString mapName = "/Game/FirstPersonCPP/Maps/FirstPersonExampleMap";
+    AutomationOpenMap(mapName);
+    TArray<LACAction> seq;
+    readLACSequence(seq);
+    for (int i = 0; i < seq.Num(); i++) {
+        if (seq[i].type) {
+            ADD_LATENT_AUTOMATION_COMMAND(FSKPD(seq[i].key, seq[i].delay));
+        }
+        else {
+            ADD_LATENT_AUTOMATION_COMMAND(FSKRD(seq[i].key, seq[i].delay));
+        }
+    }
     return true;
 }
 
@@ -323,8 +415,16 @@ bool FMyProjectRecordedSequence::RunTest(const FString& Parameters) {
     ADD_LATENT_AUTOMATION_COMMAND(FWaitLatentCommand(2.0f));
 
     /** Insert LAC sequence below */
-    FTimerHandle myHandle;
-    GetTestWorld()->GetTimerManager().SetTimer(myHandle, &MyClass::PressOneKey, 1.0f, false);
+    ADD_LATENT_AUTOMATION_COMMAND(FSKPD("W", 0.22));
+    ADD_LATENT_AUTOMATION_COMMAND(FSKPD("A", 0.12));
+    ADD_LATENT_AUTOMATION_COMMAND(FSKRD("A", 1.38));
+    ADD_LATENT_AUTOMATION_COMMAND(FSKRD("W", 1.49));
+    ADD_LATENT_AUTOMATION_COMMAND(FSKPD("D", 0.05));
+    ADD_LATENT_AUTOMATION_COMMAND(FSKRD("D", 1.19));
+    ADD_LATENT_AUTOMATION_COMMAND(FSKPD("SpaceBar", 0.31));
+    ADD_LATENT_AUTOMATION_COMMAND(FSKPD("D", 0.12));
+    ADD_LATENT_AUTOMATION_COMMAND(FSKRD("SpaceBar", 0.02));
+    ADD_LATENT_AUTOMATION_COMMAND(FSKRD("D", 0.67));
     /** Insert LAC sequence above */
 
     return true;
@@ -387,16 +487,39 @@ bool ue4EditorInput() {
     }
 }
 
-class MyClass {
-public:
-    void MyClass::PressOneKey() {
-        APlayerController* pc = GetTestWorld()->GetFirstPlayerController();
-        pc->InputKey(FKey("W"), EInputEvent::IE_Pressed, 1.0f, false);
+void readLACSequence(TArray<LACAction> &actions) {
+    FString file = FPaths::GameDevelopersDir();
+    file.Append(TEXT("LACSequence.txt"));
+    IPlatformFile& FileManager = FPlatformFileManager::Get().GetPlatformFile();
+    FString FileContent;
+    if (FileManager.FileExists(*file))
+    {
+        if (FFileHelper::LoadFileToString(FileContent, *file, FFileHelper::EHashOptions::None))
+        {
+            TArray<FString> lines;
+            //TArray<LACAction> actions;
+            FileContent.ParseIntoArrayLines(lines);
+            for (int i = 0; i < lines.Num(); i++) {
+                FString* key = new FString(), * delay = new FString, * type = new FString, * rest = new FString;
+                //lines[i].Append("b");
+                lines[i].Split("|", key, rest);
+                rest->Split("|", delay, type);
+                if (type->Equals("1")) {
+                    actions.Add(LACAction(*key, FCString::Atof(*(*delay)), true));
+                }
+                else {
+                    actions.Add(LACAction(*key, FCString::Atof(*(*delay)), false));
+                }
+            }
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("FileManipulation: Did not load text from file"));
+        }
     }
-
-    void MyClass::ReleaseOneKey() {
-        APlayerController* pc = GetTestWorld()->GetFirstPlayerController();
-        pc->InputKey(FKey("W"), EInputEvent::IE_Released, 1.0f, false);
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("FileManipulation: ERROR: Can not read the file because it was not found."));
+        UE_LOG(LogTemp, Warning, TEXT("FileManipulation: Expected file location: %s"), *file);
     }
-
-};
+}
