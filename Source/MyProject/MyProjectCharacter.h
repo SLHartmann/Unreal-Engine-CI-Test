@@ -165,13 +165,33 @@ protected:
 
 
 	struct LACAction {
-		FString key = "";
-		double delay = 0.0;
-		bool type = 0;
-		LACAction(FString k, double d, bool t) {
+		short type = 0;			//0 keyboard, 1 mouse, 2 delay
+		FString key = "";		//key specifier
+		double delay = 0.0;		//time before keyboard action AND length of mouse sequence
+		float mouseX = 0.0f;	//value that the mouse moved on the x axis
+		float mouseY = 0.0f;	//value that the mouse moved on the x axis
+		bool event = 0;			//0 released, 1 pressed
+
+		//Constructor for keyboard actions
+		LACAction(short t, FString k, double d, bool e) {
+			type = t;
 			key = k;
 			delay = d;
+			event = e;
+		}
+
+		//Constructor for mouse sequences
+		LACAction(short t, float x, float y, double d) {
 			type = t;
+			mouseX = x;
+			mouseY = y;
+			delay = d;
+		}
+
+		//Constructor for delays
+		LACAction(short t, double d) {
+			type = t;
+			delay = d;
 		}
 	};
 
@@ -180,5 +200,15 @@ protected:
 	TArray<LACAction> sequence;
 
 	bool recording = false;
+
+	bool mouseKeyboard = false;
+
+	float mouseXRec = 0.0f;
+
+	float mouseYRec = 0.0f;
+
+	UInputComponent *pic;
+
+	double numTicks = 0.0f;
 };
 

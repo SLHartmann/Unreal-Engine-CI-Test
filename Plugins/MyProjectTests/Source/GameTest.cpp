@@ -16,13 +16,33 @@
 #include "Misc/Paths.h"
 
 struct LACAction {
+    short type = 0;
     FString key = "";
+    float mouseX = 0.0f;
+    float mouseY = 0.0f;
     double delay = 0.0;
-    bool type = 0;
-    LACAction(FString k, double d, bool t) {
+    bool event = 0;
+
+    //Constructor for keyboard actions
+    LACAction(short t, FString k, double d, bool e) {
+        type = t;
         key = k;
         delay = d;
+        event = e;
+    }
+
+    //Constructor for mouse sequence
+    LACAction(short t, float x, float y, double d) {
         type = t;
+        mouseX = x;
+        mouseY = y;
+        delay = d;
+    }
+
+    //Constructor for delays
+    LACAction(short t, double d) {
+        type = t;
+        delay = d;
     }
 };
 
@@ -297,6 +317,22 @@ bool FTwoAxisInputSmoothDelay::Update() {
     return true;
 }
 
+DEFINE_LATENT_AUTOMATION_COMMAND_THREE_PARAMETER(FTAIS, float, valueX, float, valueY, double, duration);
+bool FTAIS::Update() {
+    const double currentTime = FPlatformTime::Seconds();
+    if (currentTime - StartTime < duration) {
+        APlayerController* pc = GetTestWorld()->GetFirstPlayerController();
+        float deltaTime = GetTestWorld()->DeltaTimeSeconds;
+        pc->InputAxis(FKey("MouseX"), valueX, 1.0f, 1, false);
+        pc->InputAxis(FKey("MouseY"), valueY, 1.0f, 1, false);
+        //pc->AddYawInput(valueX);
+        //pc->AddPitchInput(valueY);
+        //ADD_LATENT_AUTOMATION_COMMAND(FAxisInput(key, value*deltaTime));
+        return false;
+    }
+    return true;
+}
+
 /*
 *                               Check Conditions
 */
@@ -395,11 +431,22 @@ bool FMyProjectPlayLACSequence::RunTest(const FString& Parameters) {
     TArray<LACAction> seq;
     readLACSequence(seq);
     for (int i = 0; i < seq.Num(); i++) {
-        if (seq[i].type) {
-            ADD_LATENT_AUTOMATION_COMMAND(FSKPD(seq[i].key, seq[i].delay));
+        if (seq[i].type == 0) {
+            //keyboard
+            if (seq[i].event) {
+                ADD_LATENT_AUTOMATION_COMMAND(FSKPD(seq[i].key, seq[i].delay));
+            }
+            else {
+                ADD_LATENT_AUTOMATION_COMMAND(FSKRD(seq[i].key, seq[i].delay));
+            }
         }
-        else {
-            ADD_LATENT_AUTOMATION_COMMAND(FSKRD(seq[i].key, seq[i].delay));
+        else if (seq[i].type == 1) {
+            //mouse
+            ADD_LATENT_AUTOMATION_COMMAND(FTAIS(seq[i].mouseX, seq[i].mouseY, seq[i].delay));
+        }
+        else if (seq[i].type == 2) {
+            //delay
+            ADD_LATENT_AUTOMATION_COMMAND(FWaitLatentCommand(seq[i].delay));
         }
     }
     return true;
@@ -500,15 +547,30 @@ void readLACSequence(TArray<LACAction> &actions) {
             //TArray<LACAction> actions;
             FileContent.ParseIntoArrayLines(lines);
             for (int i = 0; i < lines.Num(); i++) {
-                FString* key = new FString(), * delay = new FString, * type = new FString, * rest = new FString;
-                //lines[i].Append("b");
-                lines[i].Split("|", key, rest);
-                rest->Split("|", delay, type);
-                if (type->Equals("1")) {
-                    actions.Add(LACAction(*key, FCString::Atof(*(*delay)), true));
+                FString* type = new FString(), * rest = new FString();
+                lines[i].Split("|", type, rest);
+                if (type->Equals("0")) {
+                    //keyboard
+                    FString* key = new FString(), * delay = new FString(), * event = new FString();
+                    rest->Split("|", key, rest);
+                    rest->Split("|", delay, event);
+                    if (event->Equals("1")) {
+                        actions.Add(LACAction(0, *key, FCString::Atof(*(*delay)), true));
+                    }
+                    else {
+                        actions.Add(LACAction(0, *key, FCString::Atof(*(*delay)), false));
+                    }
                 }
-                else {
-                    actions.Add(LACAction(*key, FCString::Atof(*(*delay)), false));
+                else if (type->Equals("1")) {
+                    //mouse
+                    FString* x = new FString(), * y = new FString(), * duration = new FString(), * rest2 = new FString();
+                    rest->Split("|", x, rest);
+                    rest->Split("|", y, duration);
+                    actions.Add(LACAction(1, FCString::Atof(*(*x)), FCString::Atof(*(*y)), FCString::Atof(*(*duration))));
+                }
+                else if (type->Equals("2")) {
+                    //delay
+                    actions.Add(LACAction(2, FCString::Atof(*(*rest))));
                 }
             }
         }

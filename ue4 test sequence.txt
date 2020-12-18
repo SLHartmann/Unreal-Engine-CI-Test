@@ -1,0 +1,76 @@
+Sequence
+	Delay(2.0f)	#Standarddelay für jeden Test, gibt der Engine Zeit die Map zu laden und PIE zu starten.
+	Beliebig lange Folge von:
+		Single key press + Delay (two params) #4
+			->Single key press (One Param) #1
+			->Delay bound by time	(One Param)	#0 Predefined
+			
+		Single Key Raise + Delay (Two Params) #5
+			->Single key raise (one param) #2
+			->Delay bound by time (one param) #0 Predefined
+			
+		Single key pressed + Delay + Single key raised + Delay #6
+			->Single key press (one param) #1
+			->Delay bound by time (one param) #0 predefined
+			->Single key raise (one param) #2
+			->Delay bound by time (one param) #0 predefined
+		
+		Single key pressed + Delay bound by boolean expression + Single key raise + Delay
+			->Single key press (one param) #1
+			->Delay until boolean expression holds (one param) #3	(max delay to stop deadlocks)
+			->Single key raise (one param) #2
+			->Delay by time (one param) #0 predefined
+			
+		Evaluate boolean expression to check whether test was successfull or not (two param) #4	
+		(ptr to function checking boolean expression and ptr to variable to store solution)
+		
+		
+		
+		
+#########################
+Capture Mouse Movement in UE4
+Only allow keyboard input before and after mouse input!
+Before recording mouse input press a previously defined button (e.g. '-' on the numpad).
+Execute the mouse movement.
+When done with the mouse movement, press previously defined button (e.g. '-' on the numpad) again.
+
+
+'W' 'A' '-' {mX mY mX mY} '-' 'W' 'A'
+ 1   2   4                 7   8   9
+Delay between 'A' and '-' and between '-' and 'W'.
+The delay between '-' and '-' is the time the mouse movement takes. (Here 3 seconds)
+			
+			
+Ways of recording key strokes:
+
+#1
+	For every possible key create an action in the input settings and bind it to a function in the Character class. 
+	(Tedious, lots of work when setting up in a new project)
+
+#2
+	Gather all bound keys and check for changes on each one in the tick function. Functionallity can be moved an external class.
+	(Not much work, could be heavy on computation time for many keys, can be "easily" set up in new projects)
+
+#3
+	Create external class with an action function for every key. At start gather all bound keys and bind them to their respectiv function in the class.
+	(Much work at the start, can be easily set up in new projects, only minimal impact on computation time{one additional function call for every keystroke})
+	
+	
+	
+Do it all in one latent command (Might fix/decrease timing problems with too many latent commands/delays):
+read all actions from file
+do an update that lasts as long as the whole sequence takes
+check everytime if the delay is met for the first action,
+if yes -> execute that action and remove it
+
+Update(){
+	double currenttime = FPlatformTime::Seconds();
+	if(currentTime - startTime <= sequenceTimeLength){
+		if(currentTime - startTime >= actions[0].delay){
+			//execute actions[0]
+			actions[0].removeFirst();
+		}
+		return false;
+	}
+	return true;
+}

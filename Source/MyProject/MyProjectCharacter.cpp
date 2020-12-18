@@ -147,6 +147,7 @@ void AMyProjectCharacter::SetupPlayerInputComponent(class UInputComponent* Playe
 	PlayerInputComponent->BindAxis("TurnRate", this, &AMyProjectCharacter::TurnAtRate);
 	PlayerInputComponent->BindAxis("LookUp", this, &APawn::AddControllerPitchInput);
 	PlayerInputComponent->BindAxis("LookUpRate", this, &AMyProjectCharacter::LookUpAtRate);
+	pic = PlayerInputComponent;
 }
 
 void AMyProjectCharacter::DetectAnyKeyPress(FKey key) {
@@ -352,16 +353,31 @@ void AMyProjectCharacter::getAllBoundKeys() {
 }
 
 void AMyProjectCharacter::recordLACSequence(double delta) {
-	UPlayerInput *pi = GetWorld()->GetFirstPlayerController()->PlayerInput;
-	for (int i = 0; i < boundKeys.Num(); i++) {
-		if (pi->WasJustPressed(FKey(TCHAR_TO_ANSI(*boundKeys[i])))) {
-			UE_LOG(LogTemp, Warning, TEXT("Following key was just pressed at %f: %s"), delta, *boundKeys[i]);
-			sequence.Add(LACAction(boundKeys[i], delta /*FPlatformTime::Seconds()*/, true));
+	if (!mouseKeyboard) {
+		//keyboard input
+		UPlayerInput* pi = GetWorld()->GetFirstPlayerController()->PlayerInput;
+		for (int i = 0; i < boundKeys.Num(); i++) {
+			if (pi->WasJustPressed(FKey(TCHAR_TO_ANSI(*boundKeys[i])))) {
+				UE_LOG(LogTemp, Warning, TEXT("Following key was just pressed at %f: %s"), delta, *boundKeys[i]);
+				sequence.Add(LACAction(0, boundKeys[i], delta /*FPlatformTime::Seconds()*/, true));
+			}
+			if (pi->WasJustReleased(FKey(TCHAR_TO_ANSI(*boundKeys[i])))) {
+				UE_LOG(LogTemp, Warning, TEXT("Following key was just released at %f: %s"), delta, *boundKeys[i]);
+				sequence.Add(LACAction(0, boundKeys[i], delta /*FPlatformTime::Seconds()*/, false));
+			}
 		}
-		if (pi->WasJustReleased(FKey(TCHAR_TO_ANSI(*boundKeys[i])))) {
-			UE_LOG(LogTemp, Warning, TEXT("Following key was just released at %f: %s"), delta, *boundKeys[i]);
-			sequence.Add(LACAction(boundKeys[i], delta /*FPlatformTime::Seconds()*/, false));
-		}
+	}
+	else {
+		//mouse input
+		//APlayerController *pc = GetWorld()->GetFirstPlayerController();
+		float mouseX, mouseY;
+		//pc->GetInputMouseDelta(mouseX, mouseY);
+		mouseX = pic->GetAxisValue("Turn");
+		mouseY = pic->GetAxisValue("LookUp");
+		UE_LOG(LogTemp, Warning, TEXT("x: %f, y: %f"), mouseX, mouseY);
+		mouseXRec += mouseX;
+		mouseYRec += mouseY;
+		numTicks++;
 	}
 }
 
@@ -370,7 +386,7 @@ void AMyProjectCharacter::checkForRecordingOld() {
 	if (pi->WasJustReleased(FKey("NumPadNine")) && !recording) {
 		//Start the recording
 		recording = !recording;
-		sequence.Add(LACAction("", FPlatformTime::Seconds(), false));
+		sequence.Add(LACAction(0, "", FPlatformTime::Seconds(), false));
 		UE_LOG(LogTemp, Warning, TEXT("Recording started!"));
 	}
 	else if (pi->WasJustReleased(FKey("NumPadNine")) && recording) {
@@ -381,7 +397,7 @@ void AMyProjectCharacter::checkForRecordingOld() {
 		TArray<FString> output;
 		for (int i = 1; i < sequence.Num(); i++) {
 			FString s;
-			if (sequence[i].type) {
+			if (sequence[i].event) {
 				s = "ADD_LATENT_AUTOMATION_COMMAND(FSKPD(\"" + sequence[i].key + "\", " + FString::SanitizeFloat(sequence[i].delay-sequence[i-1].delay) + "));";
 			}
 			else {
@@ -401,24 +417,38 @@ void AMyProjectCharacter::checkForRecording() {
 	if (pi->WasJustReleased(FKey("NumPadNine")) && !recording) {
 		//Start the recording
 		recording = !recording;
-		sequence.Add(LACAction("", FPlatformTime::Seconds(), false));
+		sequence.Add(LACAction(0, "", FPlatformTime::Seconds(), false));
 		UE_LOG(LogTemp, Warning, TEXT("Recording started!"));
 	}
 	else if (pi->WasJustReleased(FKey("NumPadNine")) && recording) {
 		//Done recording, convert sequence and save to file
+		/*TODO
+		* Different write operations for different LACAction types
+		*/
 		recording = !recording;
 		UE_LOG(LogTemp, Warning, TEXT("Recording finished!"));
 		UE_LOG(LogTemp, Warning, TEXT("Saving sequence to: %s"), *FPaths::GameDevelopersDir());
 		TArray<FString> output;
 		for (int i = 1; i < sequence.Num(); i++) {
 			FString s;
-			if (sequence[i].type) {
-				//press
-				s = sequence[i].key + "|" + FString::SanitizeFloat(sequence[i].delay - sequence[i - 1].delay) + "|1";
+			if (sequence[i].type == 0) {
+				//keyboard
+				if (sequence[i].event) {
+					//press
+					s = "0|" + sequence[i].key + "|" + FString::SanitizeFloat(sequence[i].delay - sequence[i - 1].delay) + "|1";
+				}
+				else {
+					//release
+					s = "0|" + sequence[i].key + "|" + FString::SanitizeFloat(sequence[i].delay - sequence[i - 1].delay) + "|0";
+				}
 			}
-			else {
-				//release
-				s = sequence[i].key + "|" + FString::SanitizeFloat(sequence[i].delay - sequence[i - 1].delay) + "|0";
+			else if (sequence[i].type == 1) {
+				//mouse
+				s = "1|" + FString::SanitizeFloat(sequence[i].mouseX) + "|" + FString::SanitizeFloat(sequence[i].mouseY) + "|" + FString::SanitizeFloat(sequence[i].delay - sequence[i - 1].delay);
+			}
+			else if (sequence[i].type == 2) {
+				//delay
+				s = "2|" + FString::SanitizeFloat(sequence[i].delay - sequence[i - 1].delay);
 			}
 			output.Add(s);
 		}
@@ -426,5 +456,24 @@ void AMyProjectCharacter::checkForRecording() {
 		//output.Add(FString("ADD_LATENT_AUTOMATION_COMMAND(FCheckPlayerPosition(ret, " + FString::SanitizeFloat(location.X) + "f, " + FString::SanitizeFloat(location.Y) + "f, " + FString::SanitizeFloat(location.Z) + "f));"));
 		FString FilePath = FPaths::ConvertRelativePathToFull(FPaths::GameDevelopersDir() + TEXT("LACSequence.txt"));
 		FFileHelper::SaveStringArrayToFile(output, *FilePath, FFileHelper::EEncodingOptions::AutoDetect, &IFileManager::Get(), EFileWrite::FILEWRITE_Append);
+	}
+	else if (pi->WasJustPressed(FKey("NumPadEight")) && recording) {
+		mouseKeyboard = !mouseKeyboard;
+		if (!mouseKeyboard) {
+			//create mouse action
+			mouseXRec /= numTicks;
+			mouseYRec /= numTicks;
+			sequence.Add(LACAction(1, mouseXRec, mouseYRec, FPlatformTime::Seconds()));
+			UE_LOG(LogTemp, Warning, TEXT("Switched to keyboard"));
+			UE_LOG(LogTemp, Warning, TEXT("Num Ticks: %f"), numTicks);
+			UE_LOG(LogTemp, Warning, TEXT("mouseX: %f, mouseY: %f"), mouseXRec, mouseYRec);
+		}
+		else {
+			//reset mouse recording for new input
+			mouseXRec = 0.0f;
+			mouseYRec = 0.0f;
+			sequence.Add(LACAction(2, FPlatformTime::Seconds()));
+			UE_LOG(LogTemp, Warning, TEXT("Switched to mouse"));
+		}
 	}
 }
