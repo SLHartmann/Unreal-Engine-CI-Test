@@ -323,13 +323,29 @@ bool FTAIS::Update() {
     if (currentTime - StartTime < duration) {
         APlayerController* pc = GetTestWorld()->GetFirstPlayerController();
         float deltaTime = GetTestWorld()->DeltaTimeSeconds;
-        pc->InputAxis(FKey("MouseX"), valueX, 1.0f, 1, false);
-        pc->InputAxis(FKey("MouseY"), valueY, 1.0f, 1, false);
+
+        if (!pc->InputComponent->GetAxisValue("Turn") != 0.0f) {
+            pc->AddYawInput(valueX);
+        }
+        if (!pc->InputComponent->GetAxisValue("LookUp") != 0.0f) {
+            pc->AddPitchInput(-valueY);
+        }
+        //pc->InputAxis(FKey("MouseX"), valueX, 1.0f, 1, false);
+        //pc->InputAxis(FKey("MouseY"), -valueY, 1.0f, 1, false);
         //pc->AddYawInput(valueX);
         //pc->AddPitchInput(valueY);
+        
         //ADD_LATENT_AUTOMATION_COMMAND(FAxisInput(key, value*deltaTime));
         return false;
     }
+    APlayerController* pc = GetTestWorld()->GetFirstPlayerController();
+    
+    /* WORKS
+    pc->SetControlRotation(FRotator(valueX, valueY, 0.0f));
+    */
+    
+    //pc->AddYawInput(valueX);
+    //pc->AddPitchInput(-valueY);
     return true;
 }
 

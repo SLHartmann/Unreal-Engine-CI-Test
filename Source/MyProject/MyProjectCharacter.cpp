@@ -369,14 +369,22 @@ void AMyProjectCharacter::recordLACSequence(double delta) {
 	}
 	else {
 		//mouse input
-		//APlayerController *pc = GetWorld()->GetFirstPlayerController();
-		float mouseX, mouseY;
+		APlayerController *pc = GetWorld()->GetFirstPlayerController();
+		FVector2D mouseDelta;
 		//pc->GetInputMouseDelta(mouseX, mouseY);
-		mouseX = pic->GetAxisValue("Turn");
-		mouseY = pic->GetAxisValue("LookUp");
-		UE_LOG(LogTemp, Warning, TEXT("x: %f, y: %f"), mouseX, mouseY);
-		mouseXRec += mouseX;
-		mouseYRec += mouseY;
+		//mouseDelta.X = pic->GetAxisValue("Turn");
+		//mouseDelta.Y = pic->GetAxisValue("LookUp");
+
+		//mouseX = pic->GetAxisKeyValue(FKey("MouseX"));
+		//mouseY = pic->GetAxisKeyValue(FKey("MouseY"));
+
+		pc->GetInputMouseDelta(mouseDelta.X, mouseDelta.Y);
+		
+
+
+		UE_LOG(LogTemp, Warning, TEXT("x: %f, y: %f"), mouseDelta.X, mouseDelta.Y);
+		mouseXRec += mouseDelta.X;
+		mouseYRec += mouseDelta.Y;
 		numTicks++;
 	}
 }
@@ -461,17 +469,29 @@ void AMyProjectCharacter::checkForRecording() {
 		mouseKeyboard = !mouseKeyboard;
 		if (!mouseKeyboard) {
 			//create mouse action
+			UE_LOG(LogTemp, Warning, TEXT("Switched to keyboard"));
+			
+			/* WORKS
+			FRotator rot = GetWorld()->GetFirstPlayerController()->GetControlRotation();
+			sequence.Add(LACAction(1, rot.Pitch, rot.Yaw, FPlatformTime::Seconds()));
+			*/
+
+			UE_LOG(LogTemp, Warning, TEXT("[RAW] mouseX: %f, mouseY: %f"), mouseXRec, mouseYRec);
 			mouseXRec /= numTicks;
 			mouseYRec /= numTicks;
 			sequence.Add(LACAction(1, mouseXRec, mouseYRec, FPlatformTime::Seconds()));
-			UE_LOG(LogTemp, Warning, TEXT("Switched to keyboard"));
 			UE_LOG(LogTemp, Warning, TEXT("Num Ticks: %f"), numTicks);
 			UE_LOG(LogTemp, Warning, TEXT("mouseX: %f, mouseY: %f"), mouseXRec, mouseYRec);
+
+			float yaw = GetWorld()->GetFirstPlayerController()->InputYawScale;
+			float pitch = GetWorld()->GetFirstPlayerController()->InputPitchScale;
+			UE_LOG(LogTemp, Warning, TEXT("yaw scale: %f, pitch scale: %f"), yaw, pitch);
 		}
 		else {
 			//reset mouse recording for new input
 			mouseXRec = 0.0f;
 			mouseYRec = 0.0f;
+			numTicks = 0.0f;
 			sequence.Add(LACAction(2, FPlatformTime::Seconds()));
 			UE_LOG(LogTemp, Warning, TEXT("Switched to mouse"));
 		}
