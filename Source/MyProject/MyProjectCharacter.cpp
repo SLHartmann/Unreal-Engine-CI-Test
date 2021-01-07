@@ -432,6 +432,8 @@ void AMyProjectCharacter::checkForRecording() {
 		//Done recording, convert sequence and save to file
 		/*TODO
 		* Different write operations for different LACAction types
+		* Cut time to max 3 digits e.g. 0.123
+		* Add 1sec delay as last LACAction to give PlayerController time to finish movement
 		*/
 		recording = !recording;
 		UE_LOG(LogTemp, Warning, TEXT("Recording finished!"));
