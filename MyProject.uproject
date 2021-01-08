@@ -37,6 +37,10 @@
 		{
 			"Name": "MyProjectTests",
 			"Enabled": true
+		},
+		{
+			"Name": "LACRecorder",
+			"Enabled": true
 		}
 	]
 }

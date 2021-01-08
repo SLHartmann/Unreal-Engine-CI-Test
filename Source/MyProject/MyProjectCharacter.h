@@ -165,7 +165,7 @@ protected:
 
 
 	struct LACAction {
-		short type = 0;			//0 keyboard, 1 mouse, 2 delay
+		short type = 0;			//0 keyboard/movement, 1 mouse, 2 delay, 3 multiple keystrokes
 		FString key = "";		//key specifier
 		double delay = 0.0;		//time before keyboard action AND length of mouse sequence
 		float mouseX = 0.0f;	//value that the mouse moved on the x axis
@@ -193,6 +193,7 @@ protected:
 			type = t;
 			delay = d;
 		}
+
 	};
 
 	TArray<FString> boundKeys;
@@ -201,7 +202,10 @@ protected:
 
 	bool recording = false;
 
-	bool mouseKeyboard = false;
+	bool mouseKeyboard = 0;
+
+	//true = movement, false = multiple keystrokes
+	bool movement = true;
 
 	float mouseXRec = 0.0f;
 

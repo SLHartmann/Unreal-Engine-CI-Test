@@ -14,6 +14,7 @@
 #include <MyProject/MyProject.h>
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "GameFramework/PlayerInput.h"
 
 struct LACAction {
     short type = 0;
@@ -248,7 +249,7 @@ bool FSKPD::Update() {
         return false;
     }
     APlayerController* pc = GetTestWorld()->GetFirstPlayerController();
-    pc->InputKey(FKey(TCHAR_TO_ANSI(*key)), EInputEvent::IE_Pressed, 1.0f, false);
+    pc->PlayerInput->InputKey(FKey(TCHAR_TO_ANSI(*key)), EInputEvent::IE_Pressed, 1.0f, false);
     //Wait for confirmation that the event was received and processed
     return true;
 }
@@ -261,7 +262,34 @@ bool FSKRD::Update() {
         return false;
     }
     APlayerController* pc = GetTestWorld()->GetFirstPlayerController();
-    pc->InputKey(FKey(TCHAR_TO_ANSI(*key)), EInputEvent::IE_Released, 1.0f, false);
+    pc->PlayerInput->InputKey(FKey(TCHAR_TO_ANSI(*key)), EInputEvent::IE_Released, 1.0f, false);
+    return true;
+}
+
+DEFINE_LATENT_AUTOMATION_COMMAND_TWO_PARAMETER(FSMKPD, FString, key, double, delay);
+bool FSMKPD::Update() {
+    const double NewTime = FPlatformTime::Seconds();
+    if (NewTime - StartTime < delay)
+    {
+        return false;
+    }
+    APlayerController* pc = GetTestWorld()->GetFirstPlayerController();
+    pc->PlayerInput->InputKey(FKey(TCHAR_TO_ANSI(*key)), EInputEvent::IE_Pressed, 1.0f, false);
+    pc->PlayerInput->FlushPressedKeys();
+    //Wait for confirmation that the event was received and processed
+    return true;
+}
+
+DEFINE_LATENT_AUTOMATION_COMMAND_TWO_PARAMETER(FSMKRD, FString, key, double, delay);
+bool FSMKRD::Update() {
+    const double NewTime = FPlatformTime::Seconds();
+    if (NewTime - StartTime < delay)
+    {
+        return false;
+    }
+    APlayerController* pc = GetTestWorld()->GetFirstPlayerController();
+    pc->PlayerInput->InputKey(FKey(TCHAR_TO_ANSI(*key)), EInputEvent::IE_Released, 1.0f, false);
+    pc->PlayerInput->FlushPressedKeys();
     return true;
 }
 
@@ -448,12 +476,12 @@ bool FMyProjectPlayLACSequence::RunTest(const FString& Parameters) {
     readLACSequence(seq);
     for (int i = 0; i < seq.Num(); i++) {
         if (seq[i].type == 0) {
-            //keyboard
+            //keyboard/movement
             if (seq[i].event) {
-                ADD_LATENT_AUTOMATION_COMMAND(FSKPD(seq[i].key, seq[i].delay));
+                ADD_LATENT_AUTOMATION_COMMAND(FSMKPD(seq[i].key, seq[i].delay));
             }
             else {
-                ADD_LATENT_AUTOMATION_COMMAND(FSKRD(seq[i].key, seq[i].delay));
+                ADD_LATENT_AUTOMATION_COMMAND(FSMKRD(seq[i].key, seq[i].delay));
             }
         }
         else if (seq[i].type == 1) {
@@ -463,6 +491,15 @@ bool FMyProjectPlayLACSequence::RunTest(const FString& Parameters) {
         else if (seq[i].type == 2) {
             //delay
             ADD_LATENT_AUTOMATION_COMMAND(FWaitLatentCommand(seq[i].delay));
+        }
+        else if (seq[i].type == 3) {
+            //keyboard/multiple keystrokes
+            if (seq[i].event) {
+                ADD_LATENT_AUTOMATION_COMMAND(FSKPD(seq[i].key, seq[i].delay));
+            }
+            else {
+                ADD_LATENT_AUTOMATION_COMMAND(FSKRD(seq[i].key, seq[i].delay));
+            }
         }
     }
     return true;
@@ -515,41 +552,6 @@ UWorld* GetTestWorld() {
     return nullptr;
 }
 
-bool ue4EditorInput() {
-    //UGameInstance* GameInst = GetGameInstance();
-    //UGameViewportClient* ViewportClient = GameInst->GetGameViewportClient();
-    //FViewport* Viewport = ViewportClient->Viewport;
-    FEditorViewportClient* ViewportClient = (FEditorViewportClient*)GEditor->GetActiveViewport()->GetClient();
-    if (ViewportClient == NULL) {
-        const FString msg_error = "The Viewport Client is null";
-        UE_LOG(LogEditorAutomationTests, Error, TEXT("%s"), *msg_error);
-        return false;
-    }
-    FViewport* Viewport = ViewportClient->Viewport;
-    if (Viewport == NULL) {
-        const FString msg_error = "The Viewport is null";
-        UE_LOG(LogEditorAutomationTests, Error, TEXT("%s"), *msg_error);
-        return false;
-    }
-
-    int32 ControllerId = 0; // or whatever controller id, could be a function param
-    FName PressedKey = FName(TEXT("Escape")); // or whatever key, could be a function param
-    FInputKeyEventArgs Args = FInputKeyEventArgs(
-        Viewport,
-        ControllerId,
-        FKey(PressedKey),
-        EInputEvent::IE_Pressed);
-
-    if (ViewportClient->InputKey(Viewport, ControllerId, FKey(PressedKey), EInputEvent::IE_Pressed)) {
-        return true;
-    }
-    else {
-        const FString msg_error = "InputKey Method did not return true.";
-        UE_LOG(LogEditorAutomationTests, Error, TEXT("%s"), *msg_error);
-        return false;
-    }
-}
-
 void readLACSequence(TArray<LACAction> &actions) {
     FString file = FPaths::GameDevelopersDir();
     file.Append(TEXT("LACSequence.txt"));
@@ -565,16 +567,26 @@ void readLACSequence(TArray<LACAction> &actions) {
             for (int i = 0; i < lines.Num(); i++) {
                 FString* type = new FString(), * rest = new FString();
                 lines[i].Split("|", type, rest);
-                if (type->Equals("0")) {
+                if (type->Equals("0") || type->Equals("3")) {
                     //keyboard
                     FString* key = new FString(), * delay = new FString(), * event = new FString();
                     rest->Split("|", key, rest);
                     rest->Split("|", delay, event);
                     if (event->Equals("1")) {
-                        actions.Add(LACAction(0, *key, FCString::Atof(*(*delay)), true));
+                        if (type->Equals("0")) {
+                            actions.Add(LACAction(0, *key, FMath::RoundHalfFromZero(FCString::Atof(*(*delay)) * 1000) / 1000, true));
+                        }
+                        else {
+                            actions.Add(LACAction(3, *key, FMath::RoundHalfFromZero(FCString::Atof(*(*delay)) * 1000) / 1000, true));
+                        }
                     }
                     else {
-                        actions.Add(LACAction(0, *key, FCString::Atof(*(*delay)), false));
+                        if (type->Equals("0")) {
+                            actions.Add(LACAction(0, *key, FCString::Atof(*(*delay)), false));
+                        }
+                        else {
+                            actions.Add(LACAction(3, *key, FCString::Atof(*(*delay)), false));
+                        }
                     }
                 }
                 else if (type->Equals("1")) {
