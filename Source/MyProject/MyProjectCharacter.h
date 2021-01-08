@@ -214,5 +214,5 @@ protected:
 	UInputComponent *pic;
 
 	double numTicks = 0.0f;
+	
 };
-

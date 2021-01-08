@@ -96,7 +96,7 @@ void AMyProjectCharacter::BeginPlay()
 
 	//Setup the LAC recording
 	getAllBoundKeys();
-	
+		
 	//Attach gun mesh component to Skeleton, doing it here because the skeleton is not yet created in the constructor
 	FP_Gun->AttachToComponent(Mesh1P, FAttachmentTransformRules(EAttachmentRule::SnapToTarget, true), TEXT("GripPoint"));
 
@@ -147,7 +147,7 @@ void AMyProjectCharacter::SetupPlayerInputComponent(class UInputComponent* Playe
 	PlayerInputComponent->BindAxis("TurnRate", this, &AMyProjectCharacter::TurnAtRate);
 	PlayerInputComponent->BindAxis("LookUp", this, &APawn::AddControllerPitchInput);
 	PlayerInputComponent->BindAxis("LookUpRate", this, &AMyProjectCharacter::LookUpAtRate);
-	pic = PlayerInputComponent;
+	//pic = PlayerInputComponent;
 }
 
 void AMyProjectCharacter::DetectAnyKeyPress(FKey key) {
@@ -325,7 +325,6 @@ bool AMyProjectCharacter::EnableTouchscreenMovement(class UInputComponent* Playe
 
 void AMyProjectCharacter::Tick(float DeltaTime) {
 	Super::Tick(DeltaTime);
-	//checkForRecordingOld();
 	checkForRecording();
 	if (recording) {
 		double delta = FPlatformTime::Seconds();
