@@ -95,7 +95,9 @@ void AMyProjectCharacter::BeginPlay()
 	PrimaryActorTick.bCanEverTick = true;
 
 	//Setup the LAC recording
-	getAllBoundKeys();
+	//getAllBoundKeys();
+	recorder = new Recorder();
+	recorder->BeginPlay(GetWorld()->GetFirstPlayerController());
 		
 	//Attach gun mesh component to Skeleton, doing it here because the skeleton is not yet created in the constructor
 	FP_Gun->AttachToComponent(Mesh1P, FAttachmentTransformRules(EAttachmentRule::SnapToTarget, true), TEXT("GripPoint"));
@@ -240,6 +242,10 @@ void AMyProjectCharacter::EndTouch(const ETouchIndex::Type FingerIndex, const FV
 	TouchItem.bIsPressed = false;
 }
 
+void AMyProjectCharacter::EndPlay(const EEndPlayReason::Type EndPlayInEditor) {
+	recorder->EndPlay();
+}
+
 //Commenting this section out to be consistent with FPS BP template.
 //This allows the user to turn without using the right virtual joystick
 
@@ -325,11 +331,12 @@ bool AMyProjectCharacter::EnableTouchscreenMovement(class UInputComponent* Playe
 
 void AMyProjectCharacter::Tick(float DeltaTime) {
 	Super::Tick(DeltaTime);
-	checkForRecording();
+	/*checkForRecording();
 	if (recording) {
 		double delta = FPlatformTime::Seconds();
 		recordLACSequence(delta);
-	}
+	}*/
+	recorder->Tick();
 }
 
 void AMyProjectCharacter::getAllBoundKeys() {

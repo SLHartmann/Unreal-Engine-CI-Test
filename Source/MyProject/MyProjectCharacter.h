@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Recorder.h"
 #include "GameFramework/Character.h"
 #include "MyProjectCharacter.generated.h"
 
@@ -49,9 +50,11 @@ public:
 	AMyProjectCharacter();
 	virtual void Tick(float DeltaTime) override;
 	bool log_control = true;
+	Recorder* recorder;
 
 protected:
 	virtual void BeginPlay();
+	virtual void EndPlay(const EEndPlayReason::Type);
 
 public:
 	/** Base turn rate, in deg/sec. Other scaling may affect final turn rate. */

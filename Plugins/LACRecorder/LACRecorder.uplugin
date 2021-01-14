@@ -1,18 +1,24 @@
 {
-    "FileVersion": 3,
-    "Version": 1,
-    "VersionName": "1.0.0",
-    "FriendlyName": "LACRecorder Plugin",
-    "Description": "Enables developers to record keystrokes and mouse movement for use with latent automation commands",
-    "Category": "Testing",
-    "CreatedBy": "You",
-    "CanContainContent": true,
-    "Installed": false,
-    "Modules": [
-        {
-            "Name": "LACRecorder",
-            "Type": "Developer",
-            "LoadingPhase": "Default"
-        }
-    ]
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "LACRecorder",
+	"Description": "A plugin for recording and saving pressed and released keys aswell as mouse movement.",
+	"Category": "Testing",
+	"CreatedBy": "Stefan Hartmann",
+	"CreatedByURL": "",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": true,
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "LACRecorder",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	]
 }

@@ -10,8 +10,8 @@
 #include "Tests/AutomationCommon.h"
 #include "AutomationDriverCommon.h"
 #include "AutomationDriverTypeDefs.h"
-#include <MyProject/MyProjectCharacter.h>
-#include <MyProject/MyProject.h>
+//#include <MyProject/MyProjectCharacter.h>
+//#include <MyProject/MyProject.h>
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "GameFramework/PlayerInput.h"
@@ -420,60 +420,30 @@ bool FMyProjectLACTest::RunTest(const FString& Parameters) {
     //Init test map/wait for it to load
     FString mapName = "/Game/FirstPersonCPP/Maps/FirstPersonExampleMap";
     AutomationOpenMap(mapName);
-    TArray<FString> keys;
-    keys.Add("W");
-    keys.Add("A");
-    keys.Add("A");
-    keys.Add("W");
-    keys.Add("D");
-    keys.Add("D");
-    keys.Add("SpaceBar");
-    keys.Add("D");
-    keys.Add("SpaceBar");
-    keys.Add("D");
-    TArray<double> delays;
-    delays.Add(0.225076);
-    delays.Add(0.124971);
-    delays.Add(1.383391);
-    delays.Add(1.499978);
-    delays.Add(0.058328);
-    delays.Add(1.191685);
-    delays.Add(0.316701);
-    delays.Add(0.124966);
-    delays.Add(0.024978);
-    delays.Add(0.675);
-    TArray<bool> types;
-    types.Add(true);
-    types.Add(true);
-    types.Add(false);
-    types.Add(false);
-    types.Add(true);
-    types.Add(false);
-    types.Add(true);
-    types.Add(true);
-    types.Add(false);
-    types.Add(false);
-    ADD_LATENT_AUTOMATION_COMMAND(FWaitLatentCommand(2.0f));
-
-    //Execute action sequence
-    for (int i = 0; i < keys.Num(); i++) {
-        if (types[i]) {
-            ADD_LATENT_AUTOMATION_COMMAND(FSKPD(keys[i], delays[i]));
-        }
-        else {
-            ADD_LATENT_AUTOMATION_COMMAND(FSKRD(keys[i], delays[i]));
+    float startTime = FPlatformTime::Seconds();
+    while (true) {
+        float currentTime = FPlatformTime::Seconds();
+        if (currentTime - startTime > 5)
+        {
+            break;
         }
     }
+
     
     return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMyProjectPlayLACSequence, "TestGroup.My Project Play LAC Sequence", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ServerContext | EAutomationTestFlags::CommandletContext | EAutomationTestFlags::ClientContext);
 bool FMyProjectPlayLACSequence::RunTest(const FString& Parameters) {
+    //Load the corresponding test map
     FString mapName = "/Game/FirstPersonCPP/Maps/FirstPersonExampleMap";
     AutomationOpenMap(mapName);
+
+    //Read the LAC sequence from the (for now) static file
     TArray<LACAction> seq;
     readLACSequence(seq);
+
+    //Create latent commands for every LAC action
     for (int i = 0; i < seq.Num(); i++) {
         if (seq[i].type == 0) {
             //keyboard/movement

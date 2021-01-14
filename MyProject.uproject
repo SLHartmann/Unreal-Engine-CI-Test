@@ -17,7 +17,8 @@
 				"SlateCore",
 				"Slate",
 				"Core",
-				"AutomationDriver"
+				"AutomationDriver",
+				"LACRecorder"
 			]
 		}
 	],
@@ -36,6 +37,10 @@
 		},
 		{
 			"Name": "MyProjectTests",
+			"Enabled": true
+		},
+		{
+			"Name": "LACRecorder",
 			"Enabled": true
 		}
 	]
