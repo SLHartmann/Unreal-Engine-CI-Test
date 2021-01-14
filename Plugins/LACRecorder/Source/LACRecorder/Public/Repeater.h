@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "LACAction.h"
+#include "GameFramework/PlayerInput.h"
 
 /**
  * 

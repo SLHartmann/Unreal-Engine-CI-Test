@@ -62,6 +62,9 @@ void Repeater::Prepare() {
 }
 
 void Repeater::Tick() {
+    if (actions.Num() == 0) {
+        return;
+    }
 tick_start:
     LACAction* act = &actions[counter];
     if(act->delay == numTicks) {
